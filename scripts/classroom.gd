@@ -360,7 +360,7 @@ func _create_teacher_desk():
 func _create_teacher():
 	teacher_node = Node3D.new()
 	teacher_node.name = "Teacher"
-	teacher_node.position = Vector3(0.0, 0.0, -1.5)
+	teacher_node.position = Vector3(0.0, 0.0, -2.2)
 	
 	var dark_mat = StandardMaterial3D.new()
 	dark_mat.albedo_color = Color(0.18, 0.18, 0.22)
@@ -1074,6 +1074,67 @@ func teacher_on_miss():
 
 
 # ============================================================
+# АНИМАЦИЯ ПИСЬМА НА ДОСКЕ
+# Вызывается при появлении каждого нового числа
+# ============================================================
+func teacher_write_number():
+	if not is_instance_valid(teacher_right_arm) or not is_instance_valid(teacher_pointer):
+		return
+	
+	# Прерываем текущую анимацию если идет
+	if teacher_reaction_tween and teacher_reaction_tween.is_valid():
+		teacher_reaction_tween.kill()
+	
+	# --- РУКА ТЯНЕТСЯ К ДОСКЕ ---
+	var reach_tween = create_tween()
+	reach_tween.set_ease(Tween.EASE_OUT)
+	reach_tween.set_trans(Tween.TRANS_BACK)
+	teacher_reaction_tween = reach_tween
+	
+	# Правая рука вперед (к доске) и чуть выше
+	reach_tween.tween_property(teacher_right_arm, "position:z", -0.4, 0.12)
+	reach_tween.parallel().tween_property(teacher_right_arm, "position:y", 0.75, 0.12)
+	reach_tween.parallel().tween_property(teacher_right_arm, "rotation:x", -0.2, 0.12)
+	
+	# Указка вперед к доске
+	reach_tween.parallel().tween_property(teacher_pointer, "position:z", -0.55, 0.12)
+	reach_tween.parallel().tween_property(teacher_pointer, "position:y", 0.68, 0.12)
+	reach_tween.parallel().tween_property(teacher_pointer, "rotation:x", 0.9, 0.12)
+	
+	# --- КОРОТКИЙ ШТРИХ (чирканье мелом) ---
+	var scribble_tween = create_tween()
+	scribble_tween.tween_interval(0.12)
+	scribble_tween.set_ease(Tween.EASE_IN_OUT)
+	scribble_tween.set_trans(Tween.TRANS_SINE)
+	scribble_tween.tween_property(teacher_right_arm, "rotation:z", -0.2, 0.05)
+	scribble_tween.tween_property(teacher_right_arm, "rotation:z", -0.08, 0.05)
+	scribble_tween.tween_property(teacher_right_arm, "rotation:z", -0.15, 0.05)
+	
+	# --- ВОЗВРАТ В ИСХОДНОЕ ПОЛОЖЕНИЕ ---
+	var return_tween = create_tween()
+	return_tween.tween_interval(0.3)
+	return_tween.set_ease(Tween.EASE_OUT)
+	return_tween.set_trans(Tween.TRANS_SINE)
+	
+	return_tween.tween_property(teacher_right_arm, "position", Vector3(0.28, 0.65, -0.05), 0.2)
+	return_tween.parallel().tween_property(teacher_right_arm, "rotation", Vector3(0.0, 0.0, -0.1), 0.2)
+	return_tween.parallel().tween_property(teacher_pointer, "position", Vector3(0.36, 0.58, -0.22), 0.2)
+	return_tween.parallel().tween_property(teacher_pointer, "rotation", Vector3(0.4, 0.0, 0.15), 0.2)
+	
+	# Короткий поворот головы к доске (как будто смотрит что пишет)
+	if is_instance_valid(teacher_head_pivot):
+		var look_tween = create_tween()
+		look_tween.set_ease(Tween.EASE_OUT)
+		look_tween.set_trans(Tween.TRANS_SINE)
+		look_tween.tween_property(teacher_head_pivot, "rotation:y", -0.2, 0.1)
+		look_tween.tween_interval(0.3)
+		var look_back = create_tween()
+		look_back.set_ease(Tween.EASE_OUT)
+		look_back.set_trans(Tween.TRANS_SINE)
+		look_back.tween_property(teacher_head_pivot, "rotation:y", 0.0, 0.15)
+
+
+# ============================================================
 # ВЫРАЖЕНИЯ ЛИЦА
 # ============================================================
 func _teacher_expression_idle():
@@ -1189,12 +1250,16 @@ func _teacher_return_to_idle():
 
 
 # ============================================================
-# 67 MOMENT — Ученики встают и делают мемный жест
+# 67 MOMENT — Чем выше rage, тем больше учеников вскакивает
 # ============================================================
-func do_sixtyseven_moment():
-	print("Класс: 67 MOMENT!")
+func do_sixtyseven_moment(rage_ratio: float = 0.5):
+	print("Класс: 67 MOMENT! (rage: ", rage_ratio, ")")
 	
-	var num_to_activate = randi() % 2 + 2
+	# От 2 до 8 учеников в зависимости от rage
+	var min_students = 2
+	var max_students = min(8, students.size())
+	var num_to_activate = int(lerp(float(min_students), float(max_students), rage_ratio))
+	
 	var shuffled = students.duplicate()
 	shuffled.shuffle()
 	
@@ -1203,17 +1268,23 @@ func do_sixtyseven_moment():
 		if is_instance_valid(student):
 			student.do_sixtyseven_pose()
 	
-	var timer = get_tree().create_timer(2.0)
+	var timer = get_tree().create_timer(2.5)
 	timer.timeout.connect(_reset_students)
 
 
 # ============================================================
-# СМЕХ КЛАССА
+# СМЕХ КЛАССА — Чем выше rage, тем интенсивнее
 # ============================================================
-func do_class_laugh():
-	print("Класс: ХА-ХА!")
+func do_class_laugh(rage_ratio: float = 0.3):
+	print("Класс: ХА-ХА! (rage: ", rage_ratio, ")")
 	
-	for student in students:
+	# При высоком rage смеются все, при низком — половина
+	var laugh_count = int(lerp(float(students.size()) * 0.5, float(students.size()), rage_ratio))
+	var shuffled = students.duplicate()
+	shuffled.shuffle()
+	
+	for i in range(min(laugh_count, shuffled.size())):
+		var student = shuffled[i]
 		if is_instance_valid(student):
 			student.do_laugh()
 

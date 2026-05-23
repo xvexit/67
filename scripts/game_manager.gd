@@ -50,9 +50,13 @@ func init(blackboard, classroom, ui):
 	classroom_node = classroom
 	ui_node = ui
 	
+	# Пробрасываем ссылку (blackboard.build() не нашёл GameManager — он ещё не существовал)
+	blackboard_node.game_manager = self
+	
 	# Подключаем сигналы от доски
 	blackboard_node.connect("number_clicked", _on_number_clicked)
 	blackboard_node.connect("number_expired", _on_number_expired)
+	blackboard_node.connect("number_spawned", _on_number_spawned)
 	
 	# Обновляем UI начальными значениями
 	ui_node.update_money(money)
@@ -105,8 +109,8 @@ func _process(delta):
 			# Время вышло - игрок не кликнул 67
 			_missed_sixtyseven()
 	
-	# Пассивный прирост rage (очень медленный, для напряжения)
-	rage += delta * 0.5
+	# Очень медленный пассивный прирост (чтобы шкала не пустовала)
+	rage += delta * 0.15
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
 
@@ -121,6 +125,15 @@ func _apply_difficulty():
 	var sixtyseven_chance = min(0.5, base_sixtyseven_chance + (difficulty_level - 1) * 0.03)
 	
 	blackboard_node.update_difficulty(spawn_interval, number_lifetime, sixtyseven_chance)
+
+
+# ============================================================
+# НОВОЕ ЧИСЛО НА ДОСКЕ — учитель пишет мелом
+# ============================================================
+func _on_number_spawned(_number_value: int):
+	if not game_active:
+		return
+	classroom_node.teacher_write_number()
 
 
 # ============================================================
@@ -162,14 +175,14 @@ func _successful_sixtyseven(button_ref):
 	money += reward
 	ui_node.update_money(money)
 	
-	# Повышаем rage meter
-	rage += 10.0
+	# Повышаем rage meter (+20 за каждый клик по 67)
+	rage += 20.0
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
 	
 	# Визуальный эффект 67 moment
 	ui_node.show_status("67!")
-	classroom_node.do_sixtyseven_moment()
+	classroom_node.do_sixtyseven_moment(rage / max_rage)
 	classroom_node.teacher_on_sixtyseven_clicked()
 	classroom_node.teacher_increase_rage(rage / max_rage)
 	
@@ -195,7 +208,7 @@ func _wrong_number_clicked(button_ref):
 	
 	# Визуальный эффект
 	ui_node.show_status("MISS!")
-	classroom_node.do_class_laugh()
+	classroom_node.do_class_laugh(rage / max_rage)
 	classroom_node.teacher_on_miss()
 	classroom_node.teacher_increase_rage(rage / max_rage)
 	
@@ -220,7 +233,7 @@ func _missed_sixtyseven():
 	
 	# Визуальный эффект
 	ui_node.show_status("MISSED 67!")
-	classroom_node.do_class_laugh()
+	classroom_node.do_class_laugh(rage / max_rage)
 	classroom_node.teacher_on_miss()
 	classroom_node.teacher_increase_rage(rage / max_rage)
 

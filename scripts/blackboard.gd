@@ -12,6 +12,7 @@ extends Node3D
 # ---- Сигналы ----
 signal number_clicked(number_value: int, button_ref)
 signal number_expired(number_value: int, button_ref)
+signal number_spawned(number_value: int)
 
 
 # ---- Параметры доски ----
@@ -31,16 +32,11 @@ var sixtyseven_chance: float = 0.1
 var spawn_timer: float = 0.0
 var generation_active: bool = true
 
-# ---- Цветовые темы для чисел ----
-var number_colors = [
-	Color(1.0, 1.0, 1.0),    # белый
-	Color(1.0, 0.9, 0.6),    # желтый
-	Color(0.7, 1.0, 0.7),    # зеленый
-	Color(0.6, 0.8, 1.0),    # голубой
-]
-
 # ---- Reference to GameManager ----
 var game_manager: Node
+
+# ---- Ссылка на тело доски (числа крепятся сюда) ----
+var board_body: Node3D
 
 
 # ============================================================
@@ -48,7 +44,7 @@ var game_manager: Node
 # ============================================================
 func build():
 	# Создаем физическое тело доски (чтобы был коллайдер)
-	var board_body = StaticBody3D.new()
+	board_body = StaticBody3D.new()
 	board_body.name = "BoardBody"
 	
 	var board_collision = CollisionShape3D.new()
@@ -155,9 +151,12 @@ func _spawn_number():
 	var pos = _get_random_board_position()
 	number_button.position = pos
 	
-	# Добавляем как дочерний элемент доски
-	add_child(number_button)
+	# Добавляем как дочерний элемент доски (на её поверхность)
+	board_body.add_child(number_button)
 	active_buttons.append(number_button)
+	
+	# Сигнал о новом числе (для анимации учителя)
+	number_spawned.emit(number_value)
 	
 	# Если это 67 - уведомляем GameManager
 	if is_sixtyseven and game_manager:
@@ -176,26 +175,22 @@ func _create_number_button(value: int) -> Node3D:
 	var button = Node3D.new()
 	button.name = "Number_" + str(value)
 	
-	# ---- Label3D с числом ----
+	# ---- Label3D с числом (стиль мела на доске) ----
 	var label = Label3D.new()
 	label.name = "Label"
 	label.text = str(value)
-	label.font_size = 36
-	label.outline_size = 2
-	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.5)
+	label.outline_size = 1
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.3)
 	
-	# Выбираем цвет в зависимости от значения
 	if value == 67:
-		# 67 - красный, жирный, заметный
-		label.modulate = Color(1.0, 0.2, 0.1)
-		label.font_size = 42
+		label.modulate = Color(1.0, 0.25, 0.1)
+		label.font_size = 44
 	else:
-		# Обычные числа - белые или пастельные
-		var color_idx = randi() % number_colors.size()
-		label.modulate = number_colors[color_idx]
+		label.modulate = Color(0.9, 0.92, 0.95)
+		label.font_size = 34
 	
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	label.pixel_size = 0.005
+	label.pixel_size = 0.004
 	button.add_child(label)
 	
 	# ---- Область для клика ----
@@ -220,18 +215,6 @@ func _create_number_button(value: int) -> Node3D:
 	)
 	
 	button.add_child(area)
-	
-	# Для 67 пишем дополнительную метку (для отладки визуально)
-	if value == 67:
-		var marker = MeshInstance3D.new()
-		marker.name = "Marker"
-		marker.mesh = BoxMesh.new()
-		marker.mesh.size = Vector3(0.2, 0.05, 0.01)
-		var marker_mat = StandardMaterial3D.new()
-		marker_mat.albedo_color = Color(1.0, 0.0, 0.0, 0.3)
-		marker.mesh.material = marker_mat
-		marker.position = Vector3(0.0, -0.15, 0.0)
-		button.add_child(marker)
 	
 	return button
 
@@ -281,3 +264,9 @@ func stop_generation():
 		if is_instance_valid(button):
 			button.queue_free()
 	active_buttons.clear()
+	
+	# Очищаем все висячие числа (на случай если список рассинхронизирован)
+	if is_instance_valid(board_body):
+		for child in board_body.get_children():
+			if child is Node3D and child.name.begins_with("Number_"):
+				child.queue_free()
