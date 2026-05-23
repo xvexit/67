@@ -1,0 +1,16 @@
+; ============================================================
+; project.godot - Конфигурация проекта "Six Seven Game"
+; Яндекс Игры, Godot 4, meme-кликер 3D
+; ============================================================
+
+[application]
+config/name="Six Seven Game"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.0")
+
+[input_devices]
+pointing/emulate_touch_from_mouse=true
+
+[rendering]
+renderer/rendering_method="forward_plus"
+environment/defaults/clear_color=Color(0.15, 0.15, 0.2, 1.0)
