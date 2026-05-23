@@ -42,6 +42,15 @@ var next_idle_time: float = 2.0
 var is_animating: bool = false
 var is_standing: bool = false
 
+# ---- 67 pump system (continuous arm pumping while standing) ----
+var pump_active: bool = false
+var pump_timer: float = 0.0
+var pump_speed: float = 3.0
+var pump_amp: float = 0.3
+var pump_base_left: float = 0.0
+var pump_base_right: float = 0.0
+var pump_offset_r: float = 0.0
+
 # ---- Тело ученика: цвета ----
 var body_colors = [
 	Color(0.82, 0.62, 0.42),
@@ -152,6 +161,14 @@ func build(index: int):
 # Ерзает, смотрит по сторонам, скучает
 # ============================================================
 func _process(delta):
+	if pump_active:
+		pump_timer += delta * pump_speed
+		var pump = sin(pump_timer * TAU) * pump_amp
+		if is_instance_valid(left_arm):
+			left_arm.rotation.x = pump_base_left + pump
+		if is_instance_valid(right_arm):
+			right_arm.rotation.x = pump_base_right + pump * 0.7 + sin(pump_timer * TAU * 1.37 + pump_offset_r) * pump_amp * 0.35
+	
 	if is_animating or is_standing:
 		return
 	
@@ -210,71 +227,128 @@ func _torso_sway(amount: float, duration: float):
 
 
 # ============================================================
-# 67 ПОЗА — ХАОТИЧНОЕ ВСКИДЫВАНИЕ РУК
+# 67 ПОЗА — MEME GESTURE
 #
-# Каждый ученик реагирует со своей задержкой,
-# скоростью и степенью хаоса
+# Резкое вставание + exaggerated pumping arms (ладони вверх,
+# локти подсогнуты, ритмичные дерганые движения)
+#
+# Каждый ученик: random timing, speed, chaos
 # ============================================================
-func do_sixtyseven_pose():
+func do_sixtyseven_pose(rage_ratio: float = 0.5):
 	is_standing = true
 	is_animating = true
 	
-	var delay = reaction_delay * randf_range(0.5, 1.5)
+	# Rage усиливает хаос
+	var rage_chaos = 1.0 + rage_ratio * 0.6
 	
-	# Ждем свою задержку
+	# ---- RANDOM DELAY BEFORE REACTION ----
+	var delay = reaction_delay * randf_range(0.3, 2.0) / rage_chaos
 	if delay > 0.0:
 		await get_tree().create_timer(delay).timeout
 	
 	if not is_instance_valid(self):
 		return
 	
-	# ---- ВСКИДЫВАНИЕ (рывок вверх) ----
-	var rise_tween = create_tween()
-	rise_tween.set_ease(Tween.EASE_OUT)
-	rise_tween.set_trans(Tween.TRANS_BACK)
+	# ========================================================
+	# 1. STAND UP — резко, стул отъезжает, random offset
+	# ========================================================
+	var stand_height = 0.4 + randf_range(0.25, 0.45) * chaos_mod
+	var chair_slide = randf_range(0.03, 0.1) * chaos_mod
 	
-	var stand_height = 0.4 + randf_range(-0.05, 0.1) * chaos_mod
-	rise_tween.tween_property(self, "position:y", stand_height, 0.12 / speed_mod)
+	var rise = create_tween()
+	rise.set_ease(Tween.EASE_OUT)
+	rise.set_trans(Tween.TRANS_BACK)
+	rise.tween_property(self, "position:y", stand_height, 0.08 / speed_mod)
+	rise.parallel().tween_property(self, "position:z", default_position.z + chair_slide, 0.1 / speed_mod)
 	
-	# ---- РУКИ ВВЕРХ (с небольшим разбросом по времени) ----
-	var arm_up_tween = create_tween()
-	arm_up_tween.set_ease(Tween.EASE_OUT)
-	arm_up_tween.set_trans(Tween.TRANS_BACK)
+	# Лёгкий рывок корпуса вперёд (lurch)
+	var lurch = create_tween()
+	lurch.set_ease(Tween.EASE_OUT)
+	lurch.set_trans(Tween.TRANS_BACK)
+	lurch.tween_property(torso_pivot, "rotation:x", randf_range(0.04, 0.12) * chaos_mod, 0.06 / speed_mod)
 	
-	var left_angle = -1.8 * randf_range(0.8, 1.2) * chaos_mod
-	var right_angle = 1.8 * randf_range(0.8, 1.2) * chaos_mod
+	# ========================================================
+	# 2. ARMS — резкий выброс в позицию pumping
+	# ========================================================
+	var arm_speed = 0.06 / speed_mod
 	
-	# Левая рука может взлететь чуть раньше/позже правой
-	arm_up_tween.tween_property(left_arm, "rotation:x", left_angle, 0.08 / speed_mod)
-	arm_up_tween.tween_property(right_arm, "rotation:x", right_angle, 0.08 / speed_mod)
+	# Левая и правая руки получают slightly разные углы
+	var left_target = -1.2 + randf_range(-0.3, 0.3) * chaos_mod * rage_chaos
+	var right_target = -0.9 + randf_range(-0.4, 0.4) * chaos_mod * rage_chaos
 	
-	# ---- ХАОТИЧНЫЕ ДОПОЛНЕНИЯ ----
+	# Локти наружу
+	var left_elbow = 0.25 + randf_range(-0.1, 0.15) * chaos_mod
+	var right_elbow = -0.25 + randf_range(-0.15, 0.1) * chaos_mod
 	
-	# Паникеры: трясут руками
-	if is_panic_type:
-		var panic_tween = create_tween()
-		panic_tween.set_loops(3)
-		panic_tween.tween_property(left_arm, "rotation:z", 0.2 * chaos_mod, 0.05)
-		panic_tween.tween_property(right_arm, "rotation:z", -0.2 * chaos_mod, 0.05)
-		panic_tween.tween_property(left_arm, "rotation:z", -0.2 * chaos_mod, 0.05)
-		panic_tween.tween_property(right_arm, "rotation:z", 0.2 * chaos_mod, 0.05)
+	var arms_out = create_tween()
+	arms_out.set_ease(Tween.EASE_OUT)
+	arms_out.set_trans(Tween.TRANS_BACK)
+	arms_out.tween_property(left_arm, "rotation:x", left_target, arm_speed)
+	arms_out.parallel().tween_property(left_arm, "rotation:z", left_elbow, arm_speed)
+	arms_out.tween_property(right_arm, "rotation:x", right_target, arm_speed * 1.2)  # slight offset
+	arms_out.parallel().tween_property(right_arm, "rotation:z", right_elbow, arm_speed)
 	
-	# Некоторые наклоняются вбок
-	if randf() < 0.3:
-		var tilt_tween = create_tween()
-		tilt_tween.set_ease(Tween.EASE_OUT)
-		tilt_tween.set_trans(Tween.TRANS_BACK)
-		tilt_tween.tween_property(torso_pivot, "rotation:z", randf_range(-0.15, 0.15) * chaos_mod, 0.1)
+	# ========================================================
+	# 3. SET UP PUMPING (continuous в _process)
+	# ========================================================
+	pump_base_left = left_target
+	pump_base_right = right_target
+	pump_amp = 0.2 * chaos_mod * rage_chaos + randf_range(0.0, 0.15)
+	pump_speed = 2.5 + randf_range(0.0, 2.5) / speed_mod
+	pump_offset_r = randf_range(0.0, 1.0)
+	pump_timer = 0.0
+	pump_active = true
 	
-	# Медленные типы — добавляем эффект "заторможенности"
+	# Для slow type — pump_speed ниже
 	if is_slow_type:
-		var slow_tween = create_tween()
-		slow_tween.tween_interval(0.3)
-		slow_tween.tween_property(torso_pivot, "rotation:z", 0.05, 0.1)
-		slow_tween.tween_property(torso_pivot, "rotation:z", -0.03, 0.15)
-		slow_tween.tween_property(torso_pivot, "rotation:z", 0.0, 0.1)
+		pump_speed *= 0.5
 	
-	# Label "67" над головой
+	# ========================================================
+	# 4. CHAOTIC EXTRAS
+	# ========================================================
+	
+	# WOBBLE корпуса (все ученики)
+	var wobble_loops = 2 + randi() % int(3 * rage_chaos)
+	var wobble = create_tween()
+	wobble.set_loops(wobble_loops)
+	var wobble_amp = 0.06 * chaos_mod * rage_chaos
+	wobble.tween_property(torso_pivot, "rotation:z", wobble_amp, 0.05)
+	wobble.tween_property(torso_pivot, "rotation:z", -wobble_amp * 0.7, 0.06)
+	wobble.tween_property(torso_pivot, "rotation:z", wobble_amp * 0.4, 0.04)
+	wobble.tween_property(torso_pivot, "rotation:z", 0.0, 0.05)
+	
+	# HEAD — запрокидывание / поворот
+	var head_tilt = create_tween()
+	head_tilt.set_ease(Tween.EASE_OUT)
+	head_tilt.set_trans(Tween.TRANS_BACK)
+	head_tilt.tween_property(head_pivot, "rotation:x", randf_range(0.05, 0.18) * chaos_mod, 0.08)
+	if randf() < 0.6:
+		var head_turn = create_tween()
+		head_turn.set_ease(Tween.EASE_OUT)
+		head_turn.set_trans(Tween.TRANS_BACK)
+		head_turn.tween_property(head_pivot, "rotation:y", randf_range(-0.2, 0.2) * chaos_mod, 0.1)
+	
+	# ARM SHAKE (panic type или случайно)
+	if is_panic_type or randf() < 0.35 * rage_chaos:
+		var shake_loops = 3 + randi() % int(4 * rage_chaos)
+		var shake = create_tween()
+		shake.set_loops(shake_loops)
+		var s = 0.12 * chaos_mod * rage_chaos
+		shake.tween_property(left_arm, "rotation:z", s, 0.03)
+		shake.tween_property(right_arm, "rotation:z", -s, 0.03)
+		shake.tween_property(left_arm, "rotation:z", -s, 0.03)
+		shake.tween_property(right_arm, "rotation:z", s, 0.03)
+	
+	# Некоторые резко дёргают головой в сторону класса
+	if randf() < 0.2:
+		var glance = create_tween()
+		glance.set_ease(Tween.EASE_OUT)
+		glance.set_trans(Tween.TRANS_BACK)
+		glance.tween_property(head_pivot, "rotation:y", randf_range(-0.5, 0.5), 0.04)
+	
+	# ========================================================
+	# 5. LABEL "67"
+	# ========================================================
 	var label = Label3D.new()
 	label.name = "SixtySevenLabel"
 	label.text = "67"
@@ -287,13 +361,11 @@ func do_sixtyseven_pose():
 	label.position = Vector3(0.0, 0.65 + sitting_y_offset, 0.0)
 	add_child(label)
 	
-	# Удаляем label через 2 сек
 	get_tree().create_timer(2.0).timeout.connect(func():
 		if is_instance_valid(label):
 			label.queue_free()
 	)
 	
-	# Анимация завершена (но ученик стоит до _reset)
 	is_animating = false
 
 
@@ -367,32 +439,32 @@ func _reset_laugh():
 # ============================================================
 func reset_pose():
 	is_standing = false
+	pump_active = false
 	is_animating = true
 	
 	var tween = create_tween()
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.set_trans(Tween.TRANS_SINE)
 	
-	# Опускаемся
+	# Опускаемся + стул на место
 	tween.parallel().tween_property(self, "position", default_position, 0.3)
 	tween.parallel().tween_property(self, "rotation", default_rotation, 0.2)
 	
-	# Некоторые чуть не падают при возврате
-	if chaos_mod > 1.2 and randf() < 0.4:
-		var stumble_tween = create_tween()
-		stumble_tween.set_ease(Tween.EASE_IN_OUT)
-		stumble_tween.tween_property(torso_pivot, "rotation:z", 0.12, 0.08)
-		stumble_tween.tween_property(torso_pivot, "rotation:z", -0.06, 0.1)
-		stumble_tween.tween_property(torso_pivot, "rotation:z", 0.0, 0.08)
+	# Почти падают при возврате (чаще и сильнее чем раньше)
+	if randf() < 0.5 * chaos_mod:
+		var stumble = create_tween()
+		stumble.set_ease(Tween.EASE_IN_OUT)
+		var s = 0.1 * chaos_mod
+		stumble.tween_property(torso_pivot, "rotation:z", s, 0.06)
+		stumble.tween_property(torso_pivot, "rotation:z", -s * 0.5, 0.08)
+		stumble.tween_property(torso_pivot, "rotation:z", 0.0, 0.06)
 	
 	_reset_arms_and_torso()
 	
-	# Очищаем label
 	for child in get_children():
 		if child.name == "SixtySevenLabel":
 			child.queue_free()
 	
-	# Ждем завершения анимации
 	await get_tree().create_timer(0.4).timeout
 	
 	if is_instance_valid(self):

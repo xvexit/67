@@ -1266,7 +1266,7 @@ func do_sixtyseven_moment(rage_ratio: float = 0.5):
 	for i in range(min(num_to_activate, shuffled.size())):
 		var student = shuffled[i]
 		if is_instance_valid(student):
-			student.do_sixtyseven_pose()
+			student.do_sixtyseven_pose(rage_ratio)
 	
 	var timer = get_tree().create_timer(2.5)
 	timer.timeout.connect(_reset_students)
