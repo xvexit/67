@@ -97,10 +97,13 @@ func _create_rage_bar():
 	
 	add_child(rage_bar_bg)
 	
+	# ---- Отметки шкалы (1x-7x) — ДО заполняемой полоски, чтобы быть под ней ----
+	_create_rage_marks()
+	
 	# ---- Заполняемая полоска (снизу вверх) ----
 	rage_bar = ColorRect.new()
 	rage_bar.name = "RageBar"
-	rage_bar.color = Color(1.0, 0.15, 0.05)
+	rage_bar.color = Color(0.9, 0.05, 0.0)
 	
 	# Те же anchors, offset позже пересчитывается динамически
 	rage_bar.anchor_left = 1.0
@@ -129,9 +132,6 @@ func _create_rage_bar():
 	
 	add_child(rage_label)
 	
-	# ---- Отметки шкалы (1x-7x) ----
-	_create_rage_marks()
-	
 	# Пересчёт rage bar при изменении размера окна
 	get_window().size_changed.connect(_on_viewport_size_changed)
 
@@ -145,7 +145,7 @@ func _create_rage_marks():
 		
 		var mark = ColorRect.new()
 		mark.name = "RageMark_" + str(level)
-		mark.color = Color(0.5, 0.5, 0.5, 0.4)
+		mark.color = Color(0.5, 0.5, 0.5, 0.3)
 		mark.anchor_left = 1.0
 		mark.anchor_top = 0.5
 		mark.anchor_right = 1.0
@@ -355,6 +355,7 @@ func _update_rage_bar_position():
 	var filled_h = bg_h * _current_rage_value
 	
 	rage_bar.offset_top = bg_bot - filled_h
+	rage_bar.offset_bottom = bg_bot
 
 
 # ============================================================
@@ -384,13 +385,8 @@ func _set_rage_fill(value: float):
 	_update_rage_bar_position()
 
 
-func _server_rage_color(value: float):
-	if value < 0.3:
-		rage_bar.color = Color(0.2, 0.8, 0.2)
-	elif value < 0.6:
-		rage_bar.color = Color(1.0, 0.7, 0.1)
-	else:
-		rage_bar.color = Color(1.0, 0.1, 0.05)
+func _server_rage_color(_value: float):
+	rage_bar.color = Color(0.9, 0.05, 0.0)
 
 
 func _handle_pulse(value: float):
@@ -460,7 +456,12 @@ func show_status(text: String):
 	tween.tween_property(status_label, "modulate:a", 1.0, 0.1)
 	tween.tween_interval(0.8)
 	tween.tween_property(status_label, "modulate:a", 0.0, 0.3)
-	tween.tween_callback(func(): status_label.visible = false)
+	tween.tween_callback(_hide_status)
+
+
+func _hide_status():
+	if is_instance_valid(status_label):
+		status_label.visible = false
 
 
 # ============================================================

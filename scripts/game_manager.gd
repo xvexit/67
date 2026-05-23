@@ -28,7 +28,7 @@ var difficulty_level: int = 1
 # ---- Параметры сложности (базовые) ----
 var base_spawn_interval: float = 2.5
 var base_number_lifetime: float = 3.5
-var base_sixtyseven_chance: float = 0.1
+var base_sixtyseven_chance: float = 0.18
 
 # ---- Таймеры ----
 var difficulty_timer: float = 0.0
@@ -141,7 +141,7 @@ func _on_sixtyseven_clicked(button_ref):
 	ui_node.update_money(money)
 	
 # ---- Slow escalating rage ----
-	var rage_gain = 1.0 + click_count * 0.2
+	var rage_gain = 0.5 + click_count * 0.1
 	rage += rage_gain
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
