@@ -19,6 +19,7 @@ func _ready():
 	_create_classroom()
 	_create_blackboard()
 	_create_ui()
+	_create_event_manager()
 	_create_game_manager()
 
 
@@ -105,6 +106,17 @@ func _create_ui():
 
 
 # ============================================================
+# СОЗДАНИЕ EVENT MANAGER
+# Система внезапных событий
+# ============================================================
+func _create_event_manager():
+	var em_script = load("res://scripts/event_manager.gd")
+	var em_node = Node.new()
+	em_node.set_script(em_script)
+	em_node.name = "EventManager"
+	add_child(em_node)
+
+# ============================================================
 # СОЗДАНИЕ GAME MANAGER
 # Игровой цикл, сложность, экономика
 # ============================================================
@@ -119,5 +131,6 @@ func _create_game_manager():
 	var found_blackboard = get_node("Blackboard")
 	var found_classroom = get_node("Classroom")
 	var found_ui = get_node("UI")
-	gm_node.init(found_blackboard, found_classroom, found_ui)
+	var found_event_manager = get_node("EventManager")
+	gm_node.init(found_blackboard, found_classroom, found_ui, found_event_manager)
 	gm_node.start_game()

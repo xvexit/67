@@ -1313,3 +1313,47 @@ func teacher_increase_rage(rage_ratio: float):
 	rage_mat.albedo_color = Color(color_r, color_g, color_b)
 	rage_mat.roughness = 0.7
 	teacher_body_mesh.set_surface_override_material(0, rage_mat)
+
+
+# ============================================================
+# УЧИТЕЛЬ ОБЕРНУЛАСЬ — медленный поворот, пристальный взгляд
+# Вызывается из event_manager при событии TEACHER_TURN
+# ============================================================
+func teacher_stare_at_class(duration: float):
+	if not is_instance_valid(teacher_head_pivot):
+		return
+	
+	teacher_state = TeacherState.REACTING
+	
+	if teacher_reaction_tween and teacher_reaction_tween.is_valid():
+		teacher_reaction_tween.kill()
+	
+	var tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	teacher_reaction_tween = tween
+	
+	# Фаза 1: медленный угрожающий поворот
+	tween.tween_property(teacher_head_pivot, "rotation:y", 0.5, 1.0)
+	tween.parallel().tween_property(teacher_head_pivot, "rotation:x", -0.05, 1.0)
+	tween.parallel().tween_callback(_teacher_expression_angry)
+	
+	# Фаза 2: держит взгляд
+	var hold = max(0.0, duration - 1.5)
+	tween.tween_interval(hold)
+	
+	# Фаза 3: возврат
+	tween.tween_property(teacher_head_pivot, "rotation", Vector3.ZERO, 0.5)
+	tween.tween_callback(_teacher_return_to_idle)
+
+
+# ============================================================
+# ВСЕ ВСТАЛИ — все ученики вскакивают с 67 панч
+# ============================================================
+func all_students_stand_up():
+	for student in students:
+		if is_instance_valid(student):
+			student.do_sixtyseven_pose(0.9)
+
+
+func all_students_reset():
+	_reset_students()

@@ -32,6 +32,16 @@ var sixtyseven_chance: float = 0.1
 var spawn_timer: float = 0.0
 var generation_active: bool = true
 
+# ---- Event multipliers ----
+var spawn_speed_multiplier: float = 1.0
+var number_lifetime_multiplier: float = 1.0
+
+# ---- 67 Rain event ----
+var is_sixtyseven_rain: bool = false
+var rain_spawn_timer: float = 0.0
+const RAIN_SPAWN_INTERVAL := 0.25
+const RAIN_MAX_NUMBERS := 40
+
 # ---- Reference to GameManager ----
 var game_manager: Node
 
@@ -107,11 +117,37 @@ func _process(delta):
 	if not generation_active:
 		return
 	
+	if is_sixtyseven_rain:
+		rain_spawn_timer += delta
+		while rain_spawn_timer >= RAIN_SPAWN_INTERVAL and generation_active:
+			rain_spawn_timer -= RAIN_SPAWN_INTERVAL
+			_spawn_rain_sixtyseven()
+		return
+	
 	spawn_timer += delta
-	while spawn_timer >= spawn_interval and generation_active:
-		spawn_timer -= spawn_interval
+	var effective_interval = spawn_interval / spawn_speed_multiplier
+	while spawn_timer >= effective_interval and generation_active:
+		spawn_timer -= effective_interval
 		_spawn_number()
 
+
+func _spawn_rain_sixtyseven():
+	if active_buttons.size() >= RAIN_MAX_NUMBERS:
+		return
+	
+	var number_button = _create_number_button(67)
+	var pos = _get_random_board_position()
+	number_button.position = pos
+	board_body.add_child(number_button)
+	active_buttons.append(number_button)
+	number_spawned.emit(67)
+	
+	if game_manager:
+		game_manager.on_sixtyseven_appeared(number_button, number_lifetime * 1.5)
+	
+	var lifetime = number_lifetime * number_lifetime_multiplier * 1.5
+	var lifetime_timer = get_tree().create_timer(lifetime)
+	lifetime_timer.timeout.connect(_on_number_timeout.bind(number_button, 67))
 
 func _spawn_number():
 	if active_buttons.size() >= max_numbers:
@@ -140,9 +176,10 @@ func _spawn_number():
 	number_spawned.emit(number_value)
 	
 	if is_sixtyseven and game_manager:
-		game_manager.on_sixtyseven_appeared(number_button, number_lifetime)
+		game_manager.on_sixtyseven_appeared(number_button, number_lifetime * number_lifetime_multiplier)
 	
-	var lifetime_timer = get_tree().create_timer(number_lifetime)
+	var effective_lifetime = number_lifetime * number_lifetime_multiplier
+	var lifetime_timer = get_tree().create_timer(effective_lifetime)
 	lifetime_timer.timeout.connect(_on_number_timeout.bind(number_button, number_value))
 
 
@@ -190,7 +227,6 @@ func _create_number_button(value: int) -> Node3D:
 	area.input_event.connect(func(_cam, event, _pos, _normal, _shape_idx):
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			if value == 67:
-				# Multi-click: каждый клик по 67 работает
 				var click_count = button.get_meta("click_count", 0)
 				click_count += 1
 				button.set_meta("click_count", click_count)
@@ -349,6 +385,7 @@ func update_difficulty(new_interval: float, new_lifetime: float, new_chance: flo
 
 func stop_generation():
 	generation_active = false
+	is_sixtyseven_rain = false
 	
 	for button in active_buttons:
 		if is_instance_valid(button):
@@ -359,3 +396,23 @@ func stop_generation():
 		for child in board_body.get_children():
 			if child is Node3D and child.name.begins_with("Number_"):
 				child.queue_free()
+
+
+func set_spawn_speed_multiplier(value: float):
+	spawn_speed_multiplier = value
+
+func set_number_lifetime_multiplier(value: float):
+	number_lifetime_multiplier = value
+
+func start_sixtyseven_rain():
+	is_sixtyseven_rain = true
+	rain_spawn_timer = 0.0
+	# Clear board for fresh rain
+	for button in active_buttons:
+		if is_instance_valid(button):
+			button.queue_free()
+	active_buttons.clear()
+
+func end_sixtyseven_rain():
+	is_sixtyseven_rain = false
+	rain_spawn_timer = 0.0

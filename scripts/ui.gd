@@ -26,6 +26,10 @@ var final_money_label: Label
 var final_time_label: Label
 var restart_button: Button
 
+# ---- Event system ----
+var event_warning_label: Label
+var event_overlay: ColorRect
+
 # ---- Rage bar параметры ----
 const RAGE_BAR_WIDTH := 28
 const RAGE_BAR_MARGIN := 16
@@ -46,6 +50,8 @@ func build():
 	_create_rage_bar()
 	_create_score_label()
 	_create_status_label()
+	_create_event_overlay()
+	_create_event_warning()
 	_create_game_over_panel()
 
 
@@ -482,3 +488,72 @@ func show_game_over(final_money: int, final_time: int):
 
 func _restart_game():
 	get_tree().reload_current_scene()
+
+
+# ============================================================
+# EVENT WARNING — название события крупно по центру
+# ============================================================
+func _create_event_warning():
+	event_warning_label = Label.new()
+	event_warning_label.name = "EventWarningLabel"
+	event_warning_label.text = ""
+	event_warning_label.visible = false
+
+	event_warning_label.add_theme_font_size_override("font_size", 48)
+	event_warning_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.9))
+	event_warning_label.add_theme_constant_override("outline_size", 8)
+	event_warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	event_warning_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	event_warning_label.anchor_left = 0.0
+	event_warning_label.anchor_top = 0.0
+	event_warning_label.anchor_right = 1.0
+	event_warning_label.anchor_bottom = 1.0
+	event_warning_label.offset_top = -60
+
+	add_child(event_warning_label)
+
+
+func show_event_warning(text: String, color: Color):
+	if not is_instance_valid(event_warning_label):
+		return
+	event_warning_label.text = text
+	event_warning_label.add_theme_color_override("font_color", color)
+	event_warning_label.visible = true
+	event_warning_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+
+func hide_event_warning():
+	if is_instance_valid(event_warning_label):
+		event_warning_label.visible = false
+
+
+# ============================================================
+# EVENT OVERLAY — цветная вспышка на весь экран
+# ============================================================
+func _create_event_overlay():
+	event_overlay = ColorRect.new()
+	event_overlay.name = "EventOverlay"
+	event_overlay.color = Color(0.0, 0.0, 0.0, 0.0)
+	event_overlay.visible = false
+	event_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	event_overlay.anchor_left = 0.0
+	event_overlay.anchor_top = 0.0
+	event_overlay.anchor_right = 1.0
+	event_overlay.anchor_bottom = 1.0
+
+	add_child(event_overlay)
+
+
+func show_event_overlay(color: Color, alpha: float):
+	if not is_instance_valid(event_overlay):
+		return
+	event_overlay.color = Color(color.r, color.g, color.b, alpha)
+	event_overlay.visible = true
+
+
+func hide_event_overlay():
+	if is_instance_valid(event_overlay):
+		event_overlay.color.a = 0.0
+		event_overlay.visible = false

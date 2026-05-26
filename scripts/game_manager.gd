@@ -16,6 +16,7 @@ extends Node
 var blackboard_node: Node
 var classroom_node: Node
 var ui_node: Node
+var event_manager_node: Node
 
 # ---- Игровые параметры ----
 var money: int = 0
@@ -38,17 +39,28 @@ var difficulty_interval: float = 15.0
 var is_waiting_for_sixtyseven: bool = false
 var current_sixtyseven_button = null
 
+# ---- Event modifiers ----
+var rage_gain_multiplier: float = 1.0
+var miss_penalty_multiplier: float = 1.0
+var bonus_money_rate: float = 0.0
 
-func init(blackboard, classroom, ui):
+# ---- Event hooks ----
+var _bonus_money_acc: float = 0.0
+
+
+func init(blackboard, classroom, ui, event_manager):
 	blackboard_node = blackboard
 	classroom_node = classroom
 	ui_node = ui
+	event_manager_node = event_manager
 	
 	blackboard_node.game_manager = self
 	
 	blackboard_node.connect("number_clicked", _on_number_clicked)
 	blackboard_node.connect("number_expired", _on_number_expired)
 	blackboard_node.connect("number_spawned", _on_number_spawned)
+	
+	event_manager_node.init(self, blackboard_node, classroom_node, ui_node)
 	
 	ui_node.update_money(money)
 	ui_node.update_rage(0)
@@ -65,6 +77,13 @@ func start_game():
 	
 	_apply_difficulty()
 	
+	rage_gain_multiplier = 1.0
+	miss_penalty_multiplier = 1.0
+	bonus_money_rate = 0.0
+	_bonus_money_acc = 0.0
+	
+	event_manager_node.start()
+	
 	print("=== ИГРА НАЧАТА! ===")
 
 
@@ -74,6 +93,14 @@ func _process(delta):
 	
 	game_time += delta
 	difficulty_timer += delta
+	
+	if bonus_money_rate > 0.0:
+		_bonus_money_acc += delta * bonus_money_rate
+		if _bonus_money_acc >= 1.0:
+			var bonus = int(_bonus_money_acc)
+			money += bonus
+			_bonus_money_acc -= bonus
+			ui_node.update_money(money)
 	
 	ui_node.update_score(int(game_time))
 	
@@ -141,7 +168,7 @@ func _on_sixtyseven_clicked(button_ref):
 	ui_node.update_money(money)
 	
 # ---- Slow escalating rage ----
-	var rage_gain = 0.5 + click_count * 0.1
+	var rage_gain = (0.5 + click_count * 0.1) * rage_gain_multiplier
 	rage += rage_gain
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
@@ -169,7 +196,7 @@ func _on_sixtyseven_clicked(button_ref):
 func _wrong_number_clicked(button_ref):
 	print("Промах! Не то число.")
 	
-	rage -= 2.0
+	rage -= 2.0 * miss_penalty_multiplier
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
 	
@@ -194,7 +221,7 @@ func _missed_sixtyseven():
 	is_waiting_for_sixtyseven = false
 	current_sixtyseven_button = null
 	
-	rage -= 3.0
+	rage -= 3.0 * miss_penalty_multiplier
 	rage = clamp(rage, 0.0, max_rage)
 	ui_node.update_rage(rage / max_rage)
 	
@@ -218,6 +245,18 @@ func _on_number_expired(number_value: int, button_ref):
 
 func _game_over():
 	game_active = false
+	event_manager_node.stop()
 	blackboard_node.stop_generation()
 	ui_node.show_game_over(money, int(game_time))
 	print("=== GAME OVER! Денег: %d, Время: %dс ===" % [money, int(game_time)])
+
+
+func set_rage_gain_multiplier(value: float):
+	rage_gain_multiplier = value
+
+func set_miss_penalty_multiplier(value: float):
+	miss_penalty_multiplier = value
+
+func set_bonus_money_rate(value: float):
+	bonus_money_rate = value
+	_bonus_money_acc = 0.0
